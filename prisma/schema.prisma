@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Goal {
+  id                    String   @id @default(uuid())
+  goal                  String
+  deadline              DateTime?
+  metric                String
+  target_value          Float
+  current_value         Float
+  current_state         String
+  current_config_version String?
+  confidence            Float?
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  config_versions       ConfigVersion[]
+  state_transitions     StateTransition[]
+  escalations           Escalation[]
+  execution_events      ExecutionEvent[]
+  agent_runs            AgentRun[]
+  action_provenance     ActionProvenance[]
+}
+
+model ConfigVersion {
+  version_id        String   @id @default(uuid())
+  goal_id           String
+  config            Json
+  trigger           String
+  trigger_source    String?
+  parent_version    String?
+  diff              Json?
+  confidence        Float?
+  state_at_creation String
+  created_at        DateTime @default(now())
+
+  goal              Goal     @relation(fields: [goal_id], references: [id], onDelete: Cascade)
+  action_provenance ActionProvenance[]
+}
+
+model Evidence {
+  id              String   @id @default(uuid())
+  citation        String
+  doi             String?
+  study_type      String
+  sample_size     Int?
+  effect_size     Float?
+  finding         String
+  quality_score   Float
+  chunk_id        String?
+  relevance_score Float?
+  created_at      DateTime @default(now())
+
+  primary_for     ActionProvenance[]
+}
+
+model ActionProvenance {
+  id                  String   @id @default(uuid())
+  goal_id              String
+  action_id            Int
+  config_version_id    String
+  primary_evidence_id  String?
+  supporting_evidence  String[]
+  created_at           DateTime @default(now())
+
+  goal                 Goal          @relation(fields: [goal_id], references: [id], onDelete: Cascade)
+  config_version       ConfigVersion @relation(fields: [config_version_id], references: [version_id], onDelete: Cascade)
+  primary_evidence     Evidence?     @relation(fields: [primary_evidence_id], references: [id])
+}
+
+model StateTransition {
+  id             String   @id @default(uuid())
+  goal_id        String
+  from_state     String
+  to_state       String
+  trigger        String
+  config_version String?
+  confidence     Float?
+  created_at     DateTime @default(now())
+
+  goal           Goal     @relation(fields: [goal_id], references: [id], onDelete: Cascade)
+}
+
+model Escalation {
+  id                    String    @id @default(uuid())
+  goal_id                String
+  trigger                String
+  state_at_trigger       String
+  confidence_at_trigger  Float?
+  partial_output         Json?
+  missing                String[]
+  suggested_resolution   String?
+  requires               String?
+  created_at             DateTime  @default(now())
+  resolved_at            DateTime?
+  resolution             String?
+
+  goal                  Goal      @relation(fields: [goal_id], references: [id], onDelete: Cascade)
+}
+
+model ExecutionEvent {
+  id                       String   @id @default(uuid())
+  goal_id                   String
+  date                      DateTime
+  actions_completed         Int
+  actions_total             Int
+  output_value              Float?
+  best_action               String?
+  improvement               Float?
+  approach_change           String?
+  consecutive_no_response   Int      @default(0)
+  created_at                DateTime @default(now())
+
+  goal                      Goal     @relation(fields: [goal_id], references: [id], onDelete: Cascade)
+}
+
+model AgentRun {
+  id                String   @id @default(uuid())
+  goal_id            String?
+  model_used         String
+  prompt_tokens      Int?
+  completion_tokens  Int?
+  cost_usd           Float?
+  duration_ms        Int?
+  stage              String
+  created_at         DateTime @default(now())
+
+  goal              Goal?    @relation(fields: [goal_id], references: [id], onDelete: SetNull)
+}
