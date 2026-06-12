@@ -1,22 +1,22 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"] });
+import AppShell from "@/components/layout/AppShell";
 
 export const metadata: Metadata = {
-  title: "Goal Machine",
-  description: "Agent OS for goal-driven execution",
+  title: "Goal Machine Agent OS",
+  description: "Goal Machine Agent OS"
 };
 
 export default function RootLayout({
-  children,
-}: {
+  children
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body>
+        <AppShell>{children}</AppShell>
+      </body>
     </html>
   );
 }
