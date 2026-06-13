@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { z } from "zod";
+import { CorpusStore, type ResearchChunk } from "@/lib/corpus/store";
 import {
   Escalation,
   GoalClassificationSchema,
@@ -32,6 +33,7 @@ export type GoalMachineHarnessOptions = {
   versionStore?: ConfigVersionStore;
   stateMachine?: GoalStateMachine;
   confidenceEngine?: ConfidenceEngine;
+  corpusStore?: CorpusStore;
 };
 
 export class GoalMachineHarness {
@@ -39,12 +41,14 @@ export class GoalMachineHarness {
   private readonly versionStore: ConfigVersionStore;
   private readonly stateMachine: GoalStateMachine;
   private readonly confidenceEngine: ConfidenceEngine;
+  private readonly corpusStore: CorpusStore;
 
   constructor(options: GoalMachineHarnessOptions = {}) {
     this.router = options.router ?? new ModelRouter();
     this.versionStore = options.versionStore ?? new ConfigVersionStore();
     this.stateMachine = options.stateMachine ?? new GoalStateMachine();
     this.confidenceEngine = options.confidenceEngine ?? new ConfidenceEngine();
+    this.corpusStore = options.corpusStore ?? new CorpusStore();
   }
 
   async run(goalInput: unknown): Promise<HarnessResult> {
@@ -56,7 +60,8 @@ export class GoalMachineHarness {
         await this.callWithRetry("classifier", classificationInput, GoalClassificationSchema, 1200),
       );
 
-      const researchInput = this.retrievalPrompt(input, classification);
+      const researchChunks = await this.corpusStore.query(this.corpusTags(classification));
+      const researchInput = this.retrievalPrompt(input, classification, researchChunks);
       const research = gate3Evidence(
         await this.callWithRetry("retriever", researchInput, ResearchBundleSchema, 2500),
       );
@@ -105,7 +110,21 @@ export class GoalMachineHarness {
     ];
   }
 
-  private retrievalPrompt(input: GoalInput, classification: unknown): ModelInput {
+  private corpusTags(classification: {
+    recommended_corpus_tags?: string[];
+    domain: string;
+    goal_type: string;
+  }): string[] {
+    const recommendedTags = classification.recommended_corpus_tags?.filter((tag) => tag.trim().length > 0) ?? [];
+
+    if (recommendedTags.length > 0) {
+      return recommendedTags;
+    }
+
+    return [classification.domain, classification.goal_type].filter((tag) => tag.trim().length > 0);
+  }
+
+  private retrievalPrompt(input: GoalInput, classification: unknown, researchChunks: ResearchChunk[]): ModelInput {
     return [
       {
         role: "system",
@@ -113,7 +132,7 @@ export class GoalMachineHarness {
       },
       {
         role: "user",
-        content: JSON.stringify({ goal_input: input, classification }),
+        content: JSON.stringify({ goal_input: input, classification, research_chunks: researchChunks }),
       },
     ];
   }
