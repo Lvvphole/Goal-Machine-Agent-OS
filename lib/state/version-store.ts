@@ -129,7 +129,15 @@ export class ConfigVersionStore {
   }
 
   private parseRow(row: Record<string, unknown>): VersionRecord {
-    const parsed = ConfigVersionSchema.parse(row);
+    const normalized = {
+      ...row,
+      created_at: row.created_at
+        ? new Date(row.created_at as string).toISOString()
+        : new Date().toISOString(),
+      diffs: row.diffs ?? row.diff ?? [],
+    };
+
+    const parsed = ConfigVersionSchema.parse(normalized);
     return {
       ...parsed,
       id: row.id as string,
