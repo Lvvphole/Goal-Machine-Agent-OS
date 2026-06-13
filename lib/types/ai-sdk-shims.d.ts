@@ -1,6 +1,22 @@
 declare module "openai" {
+  export type EmbeddingCreateParams = {
+    model: string;
+    input: string | string[];
+  };
+
+  export type Embedding = {
+    embedding: number[];
+  };
+
+  export type CreateEmbeddingResponse = {
+    data: Embedding[];
+  };
+
   export default class OpenAI {
     constructor(options?: { apiKey?: string });
+    embeddings: {
+      create(params: EmbeddingCreateParams): Promise<CreateEmbeddingResponse>;
+    };
   }
 }
 
@@ -22,3 +38,5 @@ declare module "dotenv" {
 declare module "prisma/config" {
   export function defineConfig(config: unknown): unknown;
 }
+
+declare module "dotenv/config";
