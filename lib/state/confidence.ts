@@ -30,6 +30,7 @@ export class ConfidenceEngine {
   private readonly db = createServiceClient();
 
   async score(
+    goalId: string,
     evidenceQuality: number,
     evidenceQuantity: number,
     domainMatch: number,
@@ -46,9 +47,6 @@ export class ConfidenceEngine {
       ),
     );
 
-    // Map scoring inputs to ConfidenceComponents:
-    // evidence_quality and action_controllability come from the research signal;
-    // timeline/motivation/environment are derived proxies from the remaining inputs.
     const components: ConfidenceComponents = {
       evidence_quality: evidenceQuality,
       action_controllability: domainMatch,
@@ -64,12 +62,30 @@ export class ConfidenceEngine {
       computed_at: new Date().toISOString(),
     };
 
-    await this.db.from("confidence_scores").insert({
+    // Write the audit row (now with goal_id attached so it's no longer orphaned).
+    const { error: scoresError } = await this.db.from("confidence_scores").insert({
+      goal_id: goalId,
       components,
       overall,
       label: result.label,
       computed_at: result.computed_at,
     });
+    if (scoresError) {
+      console.error("confidence_scores insert failed:", scoresError.message);
+    }
+
+    // Mirror overall onto goals.confidence so /api/goals/create and the dashboard
+    // can read it in a single SELECT without joining confidence_scores.
+    const { error: goalsError } = await this.db
+      .from("goals")
+      .update({
+        confidence: overall,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", goalId);
+    if (goalsError) {
+      console.error("goals.confidence update failed:", goalsError.message);
+    }
 
     return result;
   }
