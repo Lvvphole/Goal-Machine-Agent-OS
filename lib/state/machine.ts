@@ -15,17 +15,32 @@ export class GoalStateMachine {
   }
 
   async getState(goalId: string): Promise<GoalMachineState> {
-    const { data, error } = await this.db
+    const { data } = await this.db
       .from("goal_states")
       .select("*")
       .eq("goal_id", goalId)
-      .single();
+      .maybeSingle();
 
-    if (error) throw new Error(`getState failed for ${goalId}: ${error.message}`);
-    return GoalMachineStateSchema.parse(data);
+    if (data) {
+      return GoalMachineStateSchema.parse({
+        ...data,
+        entered_at: new Date(data.entered_at).toISOString(),
+      });
+    }
+
+    const initialState = {
+      goal_id: goalId,
+      current_state: "setup" as const,
+      history: [],
+      entered_at: new Date().toISOString(),
+    };
+
+    await this.db.from("goal_states").insert(initialState);
+
+    return GoalMachineStateSchema.parse(initialState);
   }
 
-  async transition(
+async transition(
     goalId: string,
     trigger: GoalState,
     reason = "system",
