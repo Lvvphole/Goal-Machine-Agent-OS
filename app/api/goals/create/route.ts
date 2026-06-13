@@ -15,6 +15,34 @@ export async function POST(request: Request) {
     }
 
     const db = createServiceClient();
+
+    // Persist user-provided flat fields onto goals so the row is retrievable
+    // by name/metric/deadline. The seeding trigger only writes goals(id);
+    // flat fields must be written here because the harness never sees the
+    // original GoalInput.
+    const { error: upsertError } = await db
+      .from("goals")
+      .upsert(
+        {
+          id: parsedConfig.data.goal_id,
+          goal: input.goal,
+          metric: input.metric,
+          target_value: input.target_value,
+          current_value: input.current_value,
+          deadline: input.deadline,
+          current_state: "active",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" },
+      );
+
+    if (upsertError) {
+      return NextResponse.json(
+        { ok: false, error: `goals upsert failed: ${upsertError.message}` },
+        { status: 500 },
+      );
+    }
+
     const [confidenceResult, evidenceResult, costResult] = await Promise.all([
       db
         .from("goals")
