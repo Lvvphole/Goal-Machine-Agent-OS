@@ -38,7 +38,7 @@ export class ConfigVersionStore {
         goal_id: config.goal_id,
         version_number: versionNumber,
         config,
-        diffs,
+        diff: diffs,
         trigger,
         parent_id: parentId ?? null,
         created_at: new Date().toISOString(),
