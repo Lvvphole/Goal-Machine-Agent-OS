@@ -30,20 +30,20 @@ const exampleForm: GoalInput = {
   metric: "daily steps",
   context: "Desk job, short commute, prefers morning routines, has a smartwatch.",
   why: "Improve energy, cardiovascular health, and mood without adding a gym habit yet.",
-  other_active_goals: ["Sleep by 10:30pm", "Cook dinner at home four nights per week"],
+  other_active_goals: [],
 };
 
+// Phase 9 rule: one goal at a time. Three visible gates (the prior 4th —
+// conflict with other active goals — is enforced internally if needed).
 const gates = [
   "Goal is specific and measurable",
   "Deadline is explicit",
   "Daily action is controllable",
-  "No severe conflict with other active goals",
 ];
 
 export default function GoalIntakeForm() {
   const [form, setForm] = useState<GoalInput>(emptyForm);
-  const [otherGoals, setOtherGoals] = useState("");
-  const [gateChecks, setGateChecks] = useState<boolean[]>([false, false, false, false]);
+  const [gateChecks, setGateChecks] = useState<boolean[]>([false, false, false]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -59,8 +59,7 @@ export default function GoalIntakeForm() {
 
   function loadExample() {
     setForm(exampleForm);
-    setOtherGoals(exampleForm.other_active_goals.join("\n"));
-    setGateChecks([true, true, true, true]);
+    setGateChecks([true, true, true]);
     setError(null);
     setSuccess(null);
   }
@@ -74,10 +73,7 @@ export default function GoalIntakeForm() {
     const payload: GoalInput = {
       ...form,
       deadline: new Date(form.deadline).toISOString(),
-      other_active_goals: otherGoals
-        .split("\n")
-        .map((goal) => goal.trim())
-        .filter(Boolean),
+      other_active_goals: [], // intentionally empty — Phase 9 rule
     };
 
     try {
@@ -109,7 +105,7 @@ export default function GoalIntakeForm() {
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-[#e8912e]">Goal Machine</p>
               <h1 className="mt-1 text-3xl font-semibold tracking-tight">Create a goal</h1>
-              <p className="mt-2 text-sm leading-6 text-slate-500">Match the GoalInput schema and pass the validation gates before launch.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">One goal at a time. Pass three validation gates before launch.</p>
             </div>
             <button type="button" onClick={loadExample} className="rounded-full bg-[#e8912e]/10 px-4 py-2 text-sm font-semibold text-[#b76617] transition hover:bg-[#e8912e]/20">
               Load example
@@ -146,15 +142,11 @@ export default function GoalIntakeForm() {
             <span className="text-sm font-semibold">Why</span>
             <textarea value={form.why} onChange={(event) => update("why", event.target.value)} className="mt-2 min-h-24 w-full rounded-2xl border-0 bg-[#f2f2f7] px-4 py-3 text-sm outline-none ring-1 ring-transparent focus:ring-[#e8912e]" required />
           </label>
-          <label className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-black/5 sm:col-span-2">
-            <span className="text-sm font-semibold">Other active goals</span>
-            <textarea value={otherGoals} onChange={(event) => setOtherGoals(event.target.value)} className="mt-2 min-h-20 w-full rounded-2xl border-0 bg-[#f2f2f7] px-4 py-3 text-sm outline-none ring-1 ring-transparent focus:ring-[#e8912e]" placeholder="One per line" />
-          </label>
         </div>
 
         <div className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-black/5">
           <h2 className="text-lg font-semibold">Validation gates</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
             {gates.map((gate, index) => (
               <label key={gate} className="flex items-center gap-3 rounded-2xl bg-[#f2f2f7] p-3 text-sm font-medium">
                 <input type="checkbox" checked={gateChecks[index]} onChange={(event) => setGateChecks((current) => current.map((value, itemIndex) => (itemIndex === index ? event.target.checked : value)))} className="h-5 w-5 rounded border-slate-300 accent-[#e8912e]" />
