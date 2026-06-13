@@ -10,6 +10,8 @@ const PAPERS_DIR = path.join(process.cwd(), "corpus", "papers");
 function metadataForPaper(fileName: string): CorpusMetadata {
   return {
     citation: path.basename(fileName, path.extname(fileName)),
+    doi: "",
+    study_type: "paper",
     tags: [],
   };
 }

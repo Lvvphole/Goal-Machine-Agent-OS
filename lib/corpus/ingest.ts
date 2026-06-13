@@ -68,7 +68,10 @@ function inflatePdfStreams(buffer: Buffer): string[] {
 }
 
 function normalizeText(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
+  return text
+    .replace(/\u0000/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 async function extractPdfText(filePath: string): Promise<string> {
