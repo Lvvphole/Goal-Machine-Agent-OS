@@ -1,62 +1,71 @@
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { GoalMachineHarness } from "@/lib/harness/pipeline";
 import { createServiceClient } from "@/lib/db/supabase";
 import { GoalInputSchema, GoalMachineConfigSchema } from "@/lib/schemas";
 import { jsonError } from "../../_lib/responses";
+import { authenticate } from "../../_lib/auth";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
+    const auth = await authenticate();
+    if ("error" in auth) return auth.error;
+    const { user, supabase } = auth;
+
     const input = GoalInputSchema.parse(await request.json());
-    const result = await new GoalMachineHarness().run(input);
+
+    // 1. Pre-insert goals row with user_id BEFORE running harness so the
+    //    user owns the row before any child writes happen. RLS WITH CHECK
+    //    on this INSERT enforces auth.uid() = user_id.
+    const goalId = randomUUID();
+    const { error: insertError } = await supabase
+      .from("goals")
+      .insert({
+        id: goalId,
+        user_id: user.id,
+        goal: input.goal,
+        metric: input.metric,
+        target_value: input.target_value,
+        current_value: input.current_value,
+        deadline: input.deadline,
+        current_state: "setup",
+        updated_at: new Date().toISOString(),
+      });
+
+    if (insertError) {
+      return NextResponse.json(
+        { ok: false, error: `goals insert failed: ${insertError.message}` },
+        { status: 500 },
+      );
+    }
+
+    // 2. Run harness with the API-generated goalId. Harness internals use
+    //    service-role and bypass RLS; their writes target this goalId.
+    const result = await new GoalMachineHarness().run(input, { goalId });
     const parsedConfig = GoalMachineConfigSchema.safeParse(result);
 
     if (!parsedConfig.success) {
       return NextResponse.json({ ok: false, escalation: result }, { status: 202 });
     }
 
-    const db = createServiceClient();
-
-    // Persist user-provided flat fields onto goals so the row is retrievable
-    // by name/metric/deadline. The seeding trigger only writes goals(id);
-    // flat fields must be written here because the harness never sees the
-    // original GoalInput.
-    const { error: upsertError } = await db
-      .from("goals")
-      .upsert(
-        {
-          id: parsedConfig.data.goal_id,
-          goal: input.goal,
-          metric: input.metric,
-          target_value: input.target_value,
-          current_value: input.current_value,
-          deadline: input.deadline,
-          current_state: "active",
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id" },
-      );
-
-    if (upsertError) {
-      return NextResponse.json(
-        { ok: false, error: `goals upsert failed: ${upsertError.message}` },
-        { status: 500 },
-      );
-    }
-
+    // 3. Read confidence and cost back.
+    const admin = createServiceClient();
     const [confidenceResult, evidenceResult, costResult] = await Promise.all([
-      db
+      supabase
         .from("goals")
         .select("confidence")
-        .eq("id", parsedConfig.data.goal_id)
+        .eq("id", goalId)
         .maybeSingle(),
-      db
+      admin
         .from("action_provenance")
         .select("supporting_evidence, primary_evidence_id")
-        .eq("goal_id", parsedConfig.data.goal_id),
-      db
+        .eq("goal_id", goalId),
+      admin
         .from("agent_runs")
         .select("cost_usd")
-        .eq("goal_id", parsedConfig.data.goal_id),
+        .eq("goal_id", goalId),
     ]);
 
     const cost = (costResult.data ?? []).reduce(

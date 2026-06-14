@@ -72,7 +72,7 @@ export class GoalMachineHarness {
     this.corpusStore = options.corpusStore ?? new CorpusStore();
   }
 
-  async run(goalInput: unknown): Promise<HarnessResult> {
+  async run(goalInput: unknown, options: { goalId?: string } = {}): Promise<HarnessResult> {
     this.agentRuns = [];
     try {
       const input = gate1Input(goalInput);
@@ -89,9 +89,10 @@ export class GoalMachineHarness {
       );
 
       const generationInput = this.generationPrompt(input, classification, research);
-      const config = gate4Output(
+      const generated = gate4Output(
         await this.callWithRetry("generator", generationInput, GoalMachineConfigSchema, 3000),
       );
+      const config = options.goalId ? { ...generated, goal_id: options.goalId } : generated;
 
       await this.versionStore.create(config, "initial harness generation");
       await this.stateMachine.transition(config.goal_id, "active", "harness generated valid config");
