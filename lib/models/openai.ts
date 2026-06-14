@@ -54,8 +54,7 @@ export class OpenAIModel implements ModelInterface {
       apiKey: this.apiKey,
       timeout: SDK_TIMEOUT_MS,
       maxRetries: 0,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+    } as unknown as { apiKey?: string });
     const client = Instructor({ client: openai, mode: "TOOLS" });
     const response = await client.chat.completions.create({
       model: this.model,
