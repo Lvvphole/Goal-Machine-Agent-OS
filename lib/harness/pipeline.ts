@@ -14,6 +14,7 @@ import { ConfidenceEngine } from "@/lib/state/confidence";
 import { GoalStateMachine } from "@/lib/state/machine";
 import { ConfigVersionStore } from "@/lib/state/version-store";
 import { ModelInput, ModelInterface } from "@/lib/models/interface";
+import { logger } from "@/lib/observability/logger";
 import { ModelUsage } from "@/lib/models/interface";
 import { gate1Input, gate2BaseRate, gate3Evidence, gate4Output, GateError } from "./gates";
 import { ModelRole, ModelRouter, Settings } from "./model-router";
@@ -75,6 +76,8 @@ export class GoalMachineHarness {
 
   async run(goalInput: unknown, options: { goalId?: string } = {}): Promise<HarnessResult> {
     this.agentRuns = [];
+    const runStart = Date.now();
+    logger.info({ goalId: options.goalId }, "harness.run.start");
     try {
       const input = gate1Input(goalInput);
 
@@ -108,8 +111,19 @@ export class GoalMachineHarness {
       // Flush buffered LLM call metrics with the now-known goal_id.
       await this.flushAgentRuns(config.goal_id);
 
+      logger.info({
+        goalId: config.goal_id,
+        durationMs: Date.now() - runStart,
+        cost: this.agentRuns.reduce((s, r) => s + r.cost_usd, 0),
+        promptTokens: this.agentRuns.reduce((s, r) => s + r.prompt_tokens, 0),
+        completionTokens: this.agentRuns.reduce((s, r) => s + r.completion_tokens, 0),
+      }, "harness.run.success");
       return config;
     } catch (error) {
+      logger.warn({
+        goalId: options.goalId,
+        durationMs: Date.now() - runStart,
+      }, "harness.run.escalation");
       return this.toEscalation(error, goalInput);
     }
   }

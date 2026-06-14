@@ -9,6 +9,8 @@ export type OpenAIModelOptions = {
   apiKey?: string;
 };
 
+const SDK_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? 60000);
+
 function assertSupportedModel(model: string): asserts model is OpenAIModelName {
   if (!OPENAI_MODELS.includes(model as OpenAIModelName)) {
     throw new Error(`Unsupported OpenAI model: ${model}`);
@@ -48,7 +50,12 @@ export class OpenAIModel implements ModelInterface {
       import("@instructor-ai/instructor"),
     ]);
 
-    const openai = new OpenAI({ apiKey: this.apiKey });
+    const openai = new OpenAI({
+      apiKey: this.apiKey,
+      timeout: SDK_TIMEOUT_MS,
+      maxRetries: 0,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
     const client = Instructor({ client: openai, mode: "TOOLS" });
     const response = await client.chat.completions.create({
       model: this.model,
