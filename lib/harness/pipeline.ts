@@ -14,6 +14,7 @@ import { ConfidenceEngine } from "@/lib/state/confidence";
 import { GoalStateMachine } from "@/lib/state/machine";
 import { ConfigVersionStore } from "@/lib/state/version-store";
 import { ModelInput, ModelInterface } from "@/lib/models/interface";
+import { ModelUsage } from "@/lib/models/interface";
 import { gate1Input, gate2BaseRate, gate3Evidence, gate4Output, GateError } from "./gates";
 import { ModelRole, ModelRouter, Settings } from "./model-router";
 import { describeError } from "./error";
@@ -122,11 +123,11 @@ export class GoalMachineHarness {
     const model = new RoutedModel(this.router, role);
     const startedAt = Date.now();
     try {
-      const result = await model.call(input, schema, maxTokens, TEMPERATURE);
-      this.recordRun(role, startedAt, input, result);
-      return result;
+      const { data, usage } = await model.call(input, schema, maxTokens, TEMPERATURE);
+      this.recordRun(role, startedAt, data, usage);
+      return data;
     } catch (error) {
-      const result = await retryWithFeedback(
+      const { data, usage } = await retryWithFeedback(
         model,
         input,
         schema,
@@ -135,34 +136,28 @@ export class GoalMachineHarness {
         maxTokens,
         TEMPERATURE,
       );
-      this.recordRun(role, startedAt, input, result);
-      return result;
+      this.recordRun(role, startedAt, data, usage);
+      return data;
     }
   }
 
   private recordRun(
     role: ModelRole,
     startedAt: number,
-    input: ModelInput,
-    result: unknown,
+    _result: unknown,
+    usage: ModelUsage,
   ): void {
-    const inputStr =
-      typeof input === "string"
-        ? input
-        : input.map((message) => message.content).join("\n");
-    const promptTokens = Math.ceil(inputStr.length / 4);
-    const completionTokens = Math.ceil(JSON.stringify(result ?? "").length / 4);
     const modelName = this.settings.getModelSettings(role).model;
     const price = PRICE_PER_M_TOKENS[modelName] ?? { in: 0, out: 0 };
     const costUsd =
-      (promptTokens * price.in + completionTokens * price.out) / 1_000_000;
+      (usage.promptTokens * price.in + usage.completionTokens * price.out) / 1_000_000;
 
     this.agentRuns.push({
       stage: role,
       model_used: modelName,
       duration_ms: Date.now() - startedAt,
-      prompt_tokens: promptTokens,
-      completion_tokens: completionTokens,
+      prompt_tokens: usage.promptTokens,
+      completion_tokens: usage.completionTokens,
       cost_usd: costUsd,
     });
   }

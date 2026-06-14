@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ModelInput, ModelInterface, ModelMessage, toMessages } from "@/lib/models/interface";
+import { ModelCallResult, ModelInput, ModelInterface, ModelMessage, toMessages } from "@/lib/models/interface";
 import { describeError, toError } from "./error";
 
 const MAX_RETRIES = 2;
@@ -26,7 +26,7 @@ export async function retryWithFeedback<TSchema extends z.ZodTypeAny>(
   attempt: number,
   maxTokens = 2000,
   temperature = 0.0,
-): Promise<z.infer<TSchema>> {
+): Promise<ModelCallResult<z.infer<TSchema>>> {
   if (attempt > MAX_RETRIES) {
     throw toError(error);
   }
