@@ -16,6 +16,7 @@ import { ConfigVersionStore } from "@/lib/state/version-store";
 import { ModelInput, ModelInterface } from "@/lib/models/interface";
 import { gate1Input, gate2BaseRate, gate3Evidence, gate4Output, GateError } from "./gates";
 import { ModelRole, ModelRouter, Settings } from "./model-router";
+import { describeError } from "./error";
 import { retryWithFeedback } from "./retry";
 
 export type HarnessResult = GoalMachineConfig | Escalation;
@@ -276,7 +277,7 @@ export class GoalMachineHarness {
       goal_id: goalId,
       trigger: error instanceof GateError ? "SYSTEM_ANOMALY" : "SYSTEM_ANOMALY",
       triggered_at: now,
-      description: error instanceof Error ? error.message : String(error),
+      description: describeError(error),
       resolved: false,
     };
   }
