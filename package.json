@@ -24,7 +24,8 @@
     "prisma": "^7.8.0",
     "react": "^18",
     "react-dom": "^18",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "pino": "^9.5.0"
   },
   "devDependencies": {
     "@types/node": "^20",

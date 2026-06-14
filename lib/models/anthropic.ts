@@ -9,6 +9,12 @@ export type AnthropicModelOptions = {
   apiKey?: string;
 };
 
+// Hard cap on a single SDK call. Vercel route timeout is 60s on Pro plan;
+// our harness does ~6 sequential calls, each capped here so one hung call
+// can't consume the whole budget. SDK internal retries disabled — we handle
+// retry feedback at the harness layer.
+const SDK_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? 60000);
+
 function assertSupportedModel(model: string): asserts model is AnthropicModelName {
   if (!ANTHROPIC_MODELS.includes(model as AnthropicModelName)) {
     throw new Error(`Unsupported Anthropic model: ${model}`);
@@ -48,7 +54,11 @@ export class AnthropicModel implements ModelInterface {
       import("@instructor-ai/instructor"),
     ]);
 
-    const anthropic = new Anthropic({ apiKey: this.apiKey });
+    const anthropic = new Anthropic({
+      apiKey: this.apiKey,
+      timeout: SDK_TIMEOUT_MS,
+      maxRetries: 0,
+    } as unknown as { apiKey?: string });
     const client = Instructor({ client: anthropic, mode: "TOOLS" });
     const response = await client.messages.create({
       model: this.model,
