@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { GoalInput } from "@/lib/schemas/goal-input";
 
 type CreateResponse = {
@@ -42,6 +43,7 @@ const gates = [
 ];
 
 export default function GoalIntakeForm() {
+  const router = useRouter();
   const [form, setForm] = useState<GoalInput>(emptyForm);
   const [gateChecks, setGateChecks] = useState<boolean[]>([false, false, false]);
   const [loading, setLoading] = useState(false);
@@ -89,7 +91,11 @@ export default function GoalIntakeForm() {
         throw new Error(data.error ?? issueText ?? "Goal creation needs escalation or could not complete.");
       }
 
-      setSuccess(data.config?.goal_id ? `Goal created: ${data.config.goal_id}` : "Goal created successfully.");
+      if (data.config?.goal_id) {
+        router.push(`/goal/${data.config.goal_id}`);
+        return;
+      }
+      setSuccess("Goal created successfully.");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unknown creation error");
     } finally {
