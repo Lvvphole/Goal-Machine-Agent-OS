@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ModelInput, ModelInterface, toMessages } from "./interface";
+import { EMPTY_USAGE, ModelCallResult, ModelInput, ModelInterface, toMessages } from "./interface";
 
 export const ANTHROPIC_MODELS = ["claude-haiku-4-5", "claude-sonnet-4-6"] as const;
 export type AnthropicModelName = (typeof ANTHROPIC_MODELS)[number];
@@ -42,7 +42,7 @@ export class AnthropicModel implements ModelInterface {
     outputSchema: TSchema,
     maxTokens: number,
     temperature: number,
-  ): Promise<z.infer<TSchema>> {
+  ): Promise<ModelCallResult<z.infer<TSchema>>> {
     const [{ default: Anthropic }, { default: Instructor }] = await Promise.all([
       import("@anthropic-ai/sdk"),
       import("@instructor-ai/instructor"),
@@ -62,6 +62,15 @@ export class AnthropicModel implements ModelInterface {
       },
     });
 
-    return unwrapInstructorResponse(response, outputSchema);
+    const data = unwrapInstructorResponse(response, outputSchema);
+    const raw = response as { usage?: { input_tokens?: number; output_tokens?: number } };
+    const inputTokens = raw.usage?.input_tokens ?? 0;
+    const outputTokens = raw.usage?.output_tokens ?? 0;
+    return {
+      data,
+      usage: inputTokens || outputTokens
+        ? { promptTokens: inputTokens, completionTokens: outputTokens, totalTokens: inputTokens + outputTokens }
+        : EMPTY_USAGE,
+    };
   }
 }

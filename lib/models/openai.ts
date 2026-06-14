@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ModelInput, ModelInterface, toMessages } from "./interface";
+import { EMPTY_USAGE, ModelCallResult, ModelInput, ModelInterface, toMessages } from "./interface";
 
 export const OPENAI_MODELS = ["gpt-4o-mini", "gpt-4o"] as const;
 export type OpenAIModelName = (typeof OPENAI_MODELS)[number];
@@ -42,7 +42,7 @@ export class OpenAIModel implements ModelInterface {
     outputSchema: TSchema,
     maxTokens: number,
     temperature: number,
-  ): Promise<z.infer<TSchema>> {
+  ): Promise<ModelCallResult<z.infer<TSchema>>> {
     const [{ default: OpenAI }, { default: Instructor }] = await Promise.all([
       import("openai"),
       import("@instructor-ai/instructor"),
@@ -61,6 +61,15 @@ export class OpenAIModel implements ModelInterface {
       },
     });
 
-    return unwrapInstructorResponse(response, outputSchema);
+    const data = unwrapInstructorResponse(response, outputSchema);
+    const raw = response as { usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } };
+    const promptTokens = raw.usage?.prompt_tokens ?? 0;
+    const completionTokens = raw.usage?.completion_tokens ?? 0;
+    return {
+      data,
+      usage: promptTokens || completionTokens
+        ? { promptTokens, completionTokens, totalTokens: raw.usage?.total_tokens ?? promptTokens + completionTokens }
+        : EMPTY_USAGE,
+    };
   }
 }
