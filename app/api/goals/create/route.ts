@@ -5,6 +5,8 @@ import { createServiceClient } from "@/lib/db/supabase";
 import { GoalInputSchema, GoalMachineConfigSchema } from "@/lib/schemas";
 import { jsonError } from "../../_lib/responses";
 import { authenticate } from "../../_lib/auth";
+import { goalCreationRatelimit } from "@/lib/observability/ratelimit";
+import { logger } from "@/lib/observability/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,24 @@ export async function POST(request: Request) {
     const auth = await authenticate();
     if ("error" in auth) return auth.error;
     const { user, supabase } = auth;
+
+    if (goalCreationRatelimit) {
+      const rl = await goalCreationRatelimit.limit(user.id);
+      if (!rl.success) {
+        const retryAfterSec = Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000));
+        logger.warn(
+          { userId: user.id, limit: rl.limit, remaining: rl.remaining, retryAfterSec },
+          "ratelimit.goal_create.exceeded",
+        );
+        return NextResponse.json(
+          {
+            ok: false,
+            error: `Rate limit: ${rl.limit} goals per hour. Try again in ${Math.ceil(retryAfterSec / 60)} minutes.`,
+          },
+          { status: 429, headers: { "Retry-After": String(retryAfterSec) } },
+        );
+      }
+    }
 
     const input = GoalInputSchema.parse(await request.json());
 
