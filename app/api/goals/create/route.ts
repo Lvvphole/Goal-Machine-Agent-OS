@@ -5,6 +5,7 @@ import { createServiceClient } from "@/lib/db/supabase";
 import { GoalInputSchema, GoalMachineConfigSchema } from "@/lib/schemas";
 import { jsonError } from "../../_lib/responses";
 import { authenticate } from "../../_lib/auth";
+import { checkIdempotency, storeIdempotency } from "@/lib/api/idempotency";
 import { goalCreationRatelimit } from "@/lib/observability/ratelimit";
 import { logger } from "@/lib/observability/logger";
 
@@ -31,6 +32,15 @@ export async function POST(request: Request) {
           },
           { status: 429, headers: { "Retry-After": String(retryAfterSec) } },
         );
+      }
+    }
+
+    const idempotencyKey = request.headers.get("idempotency-key");
+    const idempotencyRoute = "POST /api/goals/create";
+    if (idempotencyKey) {
+      const cached = await checkIdempotency(supabase, user.id, idempotencyKey, idempotencyRoute);
+      if (cached) {
+        return NextResponse.json(cached.body, { status: cached.statusCode });
       }
     }
 
@@ -93,13 +103,17 @@ export async function POST(request: Request) {
       0,
     );
 
-    return NextResponse.json({
+    const responseBody = {
       ok: true,
       config: parsedConfig.data,
       confidence: confidenceResult.data?.confidence ?? null,
       sources: evidenceResult.data ?? [],
       cost,
-    });
+    };
+    if (idempotencyKey) {
+      await storeIdempotency(supabase, user.id, idempotencyKey, idempotencyRoute, 200, responseBody);
+    }
+    return NextResponse.json(responseBody);
   } catch (error) {
     return jsonError(error);
   }
