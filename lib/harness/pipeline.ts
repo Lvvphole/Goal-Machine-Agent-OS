@@ -33,6 +33,8 @@ const PRICE_PER_M_TOKENS: Record<string, { in: number; out: number }> = {
   "gpt-4o":            { in: 2.50, out: 10.00 },
 };
 
+const COST_CEILING_USD = Number(process.env.COST_CEILING_USD ?? 0.5);
+
 type AgentRunLog = {
   stage: ModelRole;
   model_used: string;
@@ -134,6 +136,7 @@ export class GoalMachineHarness {
     schema: TSchema,
     maxTokens: number,
   ) {
+    this.assertCostUnderCeiling();
     const model = new RoutedModel(this.router, role);
     const startedAt = Date.now();
     try {
@@ -152,6 +155,19 @@ export class GoalMachineHarness {
       );
       this.recordRun(role, startedAt, data, usage);
       return data;
+    }
+  }
+
+  private assertCostUnderCeiling(): void {
+    const accumulated = this.agentRuns.reduce((sum, run) => sum + run.cost_usd, 0);
+    if (accumulated >= COST_CEILING_USD) {
+      logger.warn(
+        { accumulated, ceiling: COST_CEILING_USD },
+        "harness.cost_ceiling.hit",
+      );
+      throw new Error(
+        `Goal cost ceiling exceeded: ${accumulated.toFixed(4)} >= ${COST_CEILING_USD.toFixed(2)} max`,
+      );
     }
   }
 
