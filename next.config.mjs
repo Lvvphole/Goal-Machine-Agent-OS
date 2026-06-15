@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   webpack: (config, { isServer }) => {
@@ -13,4 +14,9 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  silent: true,
+  // Source-map upload disabled. To enable: add SENTRY_AUTH_TOKEN, SENTRY_ORG,
+  // SENTRY_PROJECT env vars and remove this disabled line.
+  hideSourceMaps: true,
+});

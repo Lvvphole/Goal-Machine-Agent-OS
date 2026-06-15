@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
 export function jsonError(error: unknown, status = 500) {
+  Sentry.captureException(error);
   if (error instanceof z.ZodError) {
     return NextResponse.json(
       { ok: false, error: "Validation failed", issues: error.issues },
