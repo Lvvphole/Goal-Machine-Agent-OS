@@ -44,6 +44,7 @@ const gates = [
 
 export default function GoalIntakeForm() {
   const router = useRouter();
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [form, setForm] = useState<GoalInput>(emptyForm);
   const [gateChecks, setGateChecks] = useState<boolean[]>([false, false, false]);
   const [loading, setLoading] = useState(false);
@@ -81,7 +82,7 @@ export default function GoalIntakeForm() {
     try {
       const response = await fetch("/api/goals/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
         body: JSON.stringify(payload),
       });
       const data = (await response.json()) as CreateResponse;
@@ -92,6 +93,7 @@ export default function GoalIntakeForm() {
       }
 
       if (data.config?.goal_id) {
+        setIdempotencyKey(crypto.randomUUID());
         router.push(`/goal/${data.config.goal_id}`);
         return;
       }
